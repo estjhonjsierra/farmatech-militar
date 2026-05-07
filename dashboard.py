@@ -7,13 +7,20 @@ import io
 # Configuración de la página
 st.set_page_config(page_title="FarmaTech - Dashboard Militar", layout="wide")
 
-# --- ESTILOS PERSONALIZADOS ---
+# --- ESTILOS PERSONALIZADOS (Añadido estilo de impresión) ---
 st.markdown("""
     <style>
     .main { background-color: #f5f7f9; }
     .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #007bff; color: white; }
     .stDownloadButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #28a745; color: white; }
     .form-style { padding: 20px; border-radius: 10px; background-color: #ffffff; border: 1px solid #e0e0e0; }
+    
+    /* Estilo para que al imprimir salga todo ordenado */
+    @media print {
+        .stSidebar { display: none; } /* Oculta la barra lateral en la captura */
+        .stButton { display: none; }
+        .stDownloadButton { display: none; }
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -66,6 +73,11 @@ else:
 st.sidebar.divider()
 st.sidebar.subheader("Acciones de Reporte")
 
+# --- NUEVO BOTÓN: CAPTURA TOTAL (SIMULADA POR IMPRESIÓN) ---
+if st.sidebar.button("📸 Capturar Reporte Completo"):
+    st.markdown('<script>window.print();</script>', unsafe_allow_html=True)
+    st.sidebar.info("Selecciona 'Guardar como PDF' en tu impresora para descargar la captura total.")
+
 if st.sidebar.button("💾 Guardar en Historial"):
     hora = datetime.now().strftime("%H:%M:%S")
     st.session_state.historial.append({"Hora": hora, "Personas": len(df_filtrado), "Estratos": ", ".join(filtro_estrato)})
@@ -79,14 +91,11 @@ if st.sidebar.button("🗑️ Vaciar Papelera"):
 # --- CUERPO PRINCIPAL ---
 st.title("📊 Dashboard de Satisfacción FarmaTech")
 
-# --- NUEVA SECCIÓN: DILIGENCIAR ENCUESTA (SOLICITADO) ---
 with st.expander("📝 ¿QUIERES REGISTRAR UNA NUEVA ENCUESTA?"):
     st.write("Para mantener la base de datos segura y robusta para tu taller, usa el siguiente enlace oficial:")
-    # Aquí puedes poner el link real de un Forms si lo tienes
     st.link_button("Ir al Formulario de Registro", "https://forms.google.com", use_container_width=True)
-    st.caption("Nota: Los nuevos datos aparecerán en el Dashboard tras actualizar el archivo Excel en el repositorio.")
 
-st.info("📸 **TIP:** Pasa el mouse sobre la gráfica y haz clic en la **CÁMARA** para descargar la imagen.")
+st.info("📸 **TIP:** Usa el botón azul de la izquierda para capturar toda la página o la cámara en cada gráfica para imágenes individuales.")
 
 col1, col2 = st.columns(2)
 
@@ -106,11 +115,10 @@ with col2:
         fig2 = px.bar(df_filtrado, x='Nombre', y=col_gasto, color=col_gasto, color_continuous_scale='Viridis')
         st.plotly_chart(fig2, use_container_width=True)
 
-# --- MOSTRAR NOMBRES DE PERSONAS FILTRADAS (SOLICITADO) ---
+# --- LISTADO DE PERSONAS ---
 st.divider()
 with st.expander(f"👤 VER LISTADO DE PERSONAS EN EL FILTRO ({len(df_filtrado)})"):
     if not df_filtrado.empty:
-        # Mostramos solo los nombres para que sea limpio
         nombres_lista = df_filtrado['Nombre'].tolist()
         st.write(", ".join(nombres_lista))
     else:
