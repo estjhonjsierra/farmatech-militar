@@ -13,14 +13,14 @@ st.markdown("""
     .main { background-color: #f5f7f9; }
     .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #007bff; color: white; }
     .stDownloadButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #28a745; color: white; }
+    .form-style { padding: 20px; border-radius: 10px; background-color: #ffffff; border: 1px solid #e0e0e0; }
     </style>
     """, unsafe_allow_html=True)
 
-# 1. CARGA DE DATOS (MEJORADO PARA QUE APAREZCAN LAS GRÁFICAS)
+# 1. CARGA DE DATOS
 @st.cache_data
 def cargar_datos():
     data = pd.read_excel("encuestas_farmatech.xlsx")
-    # CORRECCIÓN: Limpia espacios vacíos al inicio y final de los títulos de las columnas
     data.columns = data.columns.str.strip()
     return data
 
@@ -47,7 +47,6 @@ if col_estrato in df.columns:
     filtro_estrato = st.sidebar.multiselect("Filtrar por Estrato:", options=opciones_estrato, default=opciones_estrato)
     df_filtrado = df[df[col_estrato].isin(filtro_estrato)]
     
-    # MOSTRAR CANTIDAD DE PERSONAS
     total_encuestados = len(df)
     seleccionados = len(df_filtrado)
     
@@ -79,34 +78,45 @@ if st.sidebar.button("🗑️ Vaciar Papelera"):
 
 # --- CUERPO PRINCIPAL ---
 st.title("📊 Dashboard de Satisfacción FarmaTech")
-st.info("📸 **PARA DESCARGAR GRÁFICAS:** Pasa el mouse sobre la gráfica y haz clic en el icono de la **CÁMARA** (Download plot as a png).")
+
+# --- NUEVA SECCIÓN: DILIGENCIAR ENCUESTA (SOLICITADO) ---
+with st.expander("📝 ¿QUIERES REGISTRAR UNA NUEVA ENCUESTA?"):
+    st.write("Para mantener la base de datos segura y robusta para tu taller, usa el siguiente enlace oficial:")
+    # Aquí puedes poner el link real de un Forms si lo tienes
+    st.link_button("Ir al Formulario de Registro", "https://forms.google.com", use_container_width=True)
+    st.caption("Nota: Los nuevos datos aparecerán en el Dashboard tras actualizar el archivo Excel en el repositorio.")
+
+st.info("📸 **TIP:** Pasa el mouse sobre la gráfica y haz clic en la **CÁMARA** para descargar la imagen.")
 
 col1, col2 = st.columns(2)
 
-# CORRECCIÓN: GRÁFICA 1 CON BUSQUEDA INTELIGENTE DE COLUMNA
+# GRÁFICA 1
 with col1:
     st.subheader("Frecuencia de Compra")
-    # Busca la columna aunque se llame 'Frecuencia ' o similar
     col_frec = next((c for c in df_filtrado.columns if 'Frecuencia' in c), None)
     if col_frec:
         fig1 = px.pie(df_filtrado, names=col_frec, hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
         st.plotly_chart(fig1, use_container_width=True)
-    else:
-        st.warning("⚠️ No se encontró la columna de 'Frecuencia' para graficar.")
 
-# CORRECCIÓN: GRÁFICA 2 CON BUSQUEDA INTELIGENTE DE COLUMNA
+# GRÁFICA 2
 with col2:
     st.subheader("Gasto Mensual por Cliente")
-    # Busca columnas que contengan 'Gasto' (como 'Gasto Mer' o 'Gasto Mensual')
     col_gasto = next((c for c in df_filtrado.columns if 'Gasto' in c), None)
     if col_gasto:
         fig2 = px.bar(df_filtrado, x='Nombre', y=col_gasto, color=col_gasto, color_continuous_scale='Viridis')
         st.plotly_chart(fig2, use_container_width=True)
+
+# --- MOSTRAR NOMBRES DE PERSONAS FILTRADAS (SOLICITADO) ---
+st.divider()
+with st.expander(f"👤 VER LISTADO DE PERSONAS EN EL FILTRO ({len(df_filtrado)})"):
+    if not df_filtrado.empty:
+        # Mostramos solo los nombres para que sea limpio
+        nombres_lista = df_filtrado['Nombre'].tolist()
+        st.write(", ".join(nombres_lista))
     else:
-        st.warning("⚠️ No se encontró la columna de 'Gasto' para graficar.")
+        st.write("No hay personas seleccionadas.")
 
 # --- SECCIÓN DE HISTORIAL ---
-st.divider()
 st.subheader("📜 Historial de Consultas")
 if st.session_state.historial:
     st.table(pd.DataFrame(st.session_state.historial))
