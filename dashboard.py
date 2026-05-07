@@ -3,23 +3,26 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime
 import io
+import streamlit.components.v1 as components # Necesario para la captura real
 
 # Configuración de la página
 st.set_page_config(page_title="FarmaTech - Dashboard Militar", layout="wide")
 
-# --- ESTILOS PERSONALIZADOS (Añadido estilo de impresión) ---
+# --- ESTILOS PERSONALIZADOS ---
 st.markdown("""
     <style>
     .main { background-color: #f5f7f9; }
     .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #007bff; color: white; }
     .stDownloadButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #28a745; color: white; }
-    .form-style { padding: 20px; border-radius: 10px; background-color: #ffffff; border: 1px solid #e0e0e0; }
     
     /* Estilo para que al imprimir salga todo ordenado */
     @media print {
-        .stSidebar { display: none; } /* Oculta la barra lateral en la captura */
-        .stButton { display: none; }
-        .stDownloadButton { display: none; }
+        .stSidebar { display: none !important; } 
+        header { visibility: hidden !important; }
+        footer { visibility: hidden !important; }
+        .stButton { display: none !important; }
+        .stDownloadButton { display: none !important; }
+        [data-testid="stExpander"] { border: 1px solid #ccc !important; }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -50,33 +53,45 @@ col_estrato = 'Estrato'
 if col_estrato in df.columns:
     df[col_estrato] = df[col_estrato].astype(str)
     opciones_estrato = sorted(df[col_estrato].unique())
-    
     filtro_estrato = st.sidebar.multiselect("Filtrar por Estrato:", options=opciones_estrato, default=opciones_estrato)
     df_filtrado = df[df[col_estrato].isin(filtro_estrato)]
     
-    total_encuestados = len(df)
-    seleccionados = len(df_filtrado)
+    st.sidebar.metric("Total Encuestados", f"{len(df)}")
+    st.sidebar.metric("Personas en Filtro", f"{len(df_filtrado)}")
     
-    st.sidebar.metric("Total Encuestados", f"{total_encuestados}")
-    st.sidebar.metric("Personas en Filtro", f"{seleccionados}")
-    
-    if seleccionados > 0:
+    if len(df_filtrado) > 0:
         st.sidebar.write("### Desglose por Estrato:")
         for est in filtro_estrato:
             cant = len(df_filtrado[df_filtrado[col_estrato] == est])
             st.sidebar.write(f"Estrato {est}: {cant} personas")
 else:
     df_filtrado = df
-    st.sidebar.error(f"No se halló la columna '{col_estrato}'")
 
 # --- BOTONES DE ACCIÓN ---
 st.sidebar.divider()
 st.sidebar.subheader("Acciones de Reporte")
 
-# --- NUEVO BOTÓN: CAPTURA TOTAL (SIMULADA POR IMPRESIÓN) ---
-if st.sidebar.button("📸 Capturar Reporte Completo"):
-    st.markdown('<script>window.print();</script>', unsafe_allow_html=True)
-    st.sidebar.info("Selecciona 'Guardar como PDF' en tu impresora para descargar la captura total.")
+# --- SOLUCIÓN PARA CAPTURA REAL ---
+st.sidebar.write("📸 **Captura Total:**")
+# Este componente crea un botón transparente que ejecuta la impresión al hacer clic
+with st.sidebar:
+    components.html(
+        """
+        <button onclick="window.parent.print()" style="
+            width: 100%; 
+            height: 3em; 
+            border-radius: 5px; 
+            border: none; 
+            background-color: #007bff; 
+            color: white; 
+            font-weight: bold;
+            cursor: pointer;">
+            📸 Capturar Reporte Completo
+        </button>
+        """,
+        height=55,
+    )
+    st.info("Al presionar, elige 'Guardar como PDF'.")
 
 if st.sidebar.button("💾 Guardar en Historial"):
     hora = datetime.now().strftime("%H:%M:%S")
@@ -85,21 +100,19 @@ if st.sidebar.button("💾 Guardar en Historial"):
 
 if st.sidebar.button("🗑️ Vaciar Papelera"):
     st.session_state.historial = []
-    st.sidebar.warning("Historial eliminado")
     st.rerun()
 
 # --- CUERPO PRINCIPAL ---
 st.title("📊 Dashboard de Satisfacción FarmaTech")
 
 with st.expander("📝 ¿QUIERES REGISTRAR UNA NUEVA ENCUESTA?"):
-    st.write("Para mantener la base de datos segura y robusta para tu taller, usa el siguiente enlace oficial:")
+    st.write("Para mantener la base de datos segura, usa el enlace oficial:")
     st.link_button("Ir al Formulario de Registro", "https://forms.google.com", use_container_width=True)
 
-st.info("📸 **TIP:** Usa el botón azul de la izquierda para capturar toda la página o la cámara en cada gráfica para imágenes individuales.")
+st.info("📸 **TIP:** Usa el botón azul de la izquierda para capturar la pantalla completa en PDF.")
 
 col1, col2 = st.columns(2)
 
-# GRÁFICA 1
 with col1:
     st.subheader("Frecuencia de Compra")
     col_frec = next((c for c in df_filtrado.columns if 'Frecuencia' in c), None)
@@ -107,7 +120,6 @@ with col1:
         fig1 = px.pie(df_filtrado, names=col_frec, hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
         st.plotly_chart(fig1, use_container_width=True)
 
-# GRÁFICA 2
 with col2:
     st.subheader("Gasto Mensual por Cliente")
     col_gasto = next((c for c in df_filtrado.columns if 'Gasto' in c), None)
@@ -115,21 +127,15 @@ with col2:
         fig2 = px.bar(df_filtrado, x='Nombre', y=col_gasto, color=col_gasto, color_continuous_scale='Viridis')
         st.plotly_chart(fig2, use_container_width=True)
 
-# --- LISTADO DE PERSONAS ---
 st.divider()
-with st.expander(f"👤 VER LISTADO DE PERSONAS EN EL FILTRO ({len(df_filtrado)})"):
+with st.expander(f"👤 LISTADO DE PERSONAS FILTRADAS ({len(df_filtrado)})"):
     if not df_filtrado.empty:
-        nombres_lista = df_filtrado['Nombre'].tolist()
-        st.write(", ".join(nombres_lista))
-    else:
-        st.write("No hay personas seleccionadas.")
+        st.write(", ".join(df_filtrado['Nombre'].tolist()))
 
-# --- SECCIÓN DE HISTORIAL ---
 st.subheader("📜 Historial de Consultas")
 if st.session_state.historial:
     st.table(pd.DataFrame(st.session_state.historial))
 
-# --- DESCARGA DE EXCEL ---
 st.divider()
 buffer = io.BytesIO()
 with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
