@@ -1,103 +1,95 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+from datetime import datetime
 import io
 
-# Configuración inicial de la página
-st.set_page_config(page_title="Dashboard FarmaTech", layout="wide")
+# Configuración de la página
+st.set_page_config(page_title="FarmaTech - Dashboard Militar", layout="wide")
 
-st.title("📊 FarmaTech: Control de Filtros y Análisis")
+# --- ESTILOS PERSONALIZADOS ---
+st.markdown("""
+    <style>
+    .main { background-color: #f5f7f9; }
+    .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #007bff; color: white; }
+    .stDownloadButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #28a745; color: white; }
+    </style>
+    """, unsafe_allow_html=True)
 
-# --- CARGAR DATOS ---
+# 1. CARGA DE DATOS
+@st.cache_data
+def cargar_datos():
+    # Asegúrate de que el nombre del archivo coincida exactamente con el de GitHub
+    return pd.read_excel("encuestas_farmatech.xlsx")
+
 try:
-    ruta = 'encuestas_farmatech.xlsx'
-    df = pd.read_excel(ruta)
-    # Limpiar espacios en los nombres de las columnas
-    df.columns = [c.strip() for c in df.columns]
-except Exception as e:
-    st.error(f"Error al cargar el archivo: {e}")
-    st.info("Asegúrate de que 'encuestas_farmatech.xlsx' esté en la raíz de tu repositorio de GitHub.")
+    df = cargar_datos()
+except:
+    st.error("⚠️ No encontré el archivo 'encuestas_farmatech.xlsx'. Asegúrate de que esté en GitHub.")
     st.stop()
 
-# --- BLOQUE DE FILTROS EN LA BARRA LATERAL ---
-st.sidebar.header("⚙️ Configuración de Filtros")
+# 2. INICIALIZAR HISTORIAL (Base de datos temporal)
+if 'historial' not in st.session_state:
+    st.session_state.historial = []
 
-# Obtener opciones únicas de estrato
-opciones_estrato = sorted(list(df["Estrato"].unique()))
+# --- BARRA LATERAL ---
+st.sidebar.image("https://www.unimilitar.edu.co/documents/10184/10227/Logo.png", width=200)
+st.sidebar.title("Panel de Control")
 
-# Selector múltiple (por defecto todos seleccionados para mostrar los 40)
-estrato_sel = st.sidebar.multiselect(
-    "Seleccione Estrato:", 
-    options=opciones_estrato, 
-    default=opciones_estrato
-)
+# 3. FILTROS
+filtro_canal = st.sidebar.multiselect("Filtrar por Canal:", options=df["Canal Preferido"].unique(), default=df["Canal Preferido"].unique())
+df_filtrado = df[df["Canal Preferido"].isin(filtro_canal)]
 
-# Aplicar el filtro al DataFrame principal
-df_filtrado = df[df["Estrato"].isin(estrato_sel)]
+# --- BOTONES ESPECIALES ---
+st.sidebar.divider()
+st.sidebar.subheader("Acciones de Reporte")
 
-# --- MÉTRICAS PRINCIPALES ---
-st.markdown("---")
-col_m1, col_m2, col_m3 = st.columns(3)
+# Botón para Guardar en Historial
+if st.sidebar.button("💾 Guardar en Historial"):
+    hora = datetime.now().strftime("%H:%M:%S")
+    st.session_state.historial.append({"Hora": hora, "Registros": len(df_filtrado), "Canales": ", ".join(filtro_canal)})
+    st.sidebar.success(f"Guardado a las {hora}")
 
-with col_m1:
-    total_encuestados = len(df_filtrado)
-    st.metric("Total Personas Filtradas", f"{total_encuestados} / {len(df)}")
+# Botón de Papelera (Limpiar Historial)
+if st.sidebar.button("🗑️ Vaciar Papelera"):
+    st.session_state.historial = []
+    st.sidebar.warning("Historial eliminado")
 
-with col_m2:
-    if not df_filtrado.empty:
-        estratos_activos = len(df_filtrado["Estrato"].unique())
-        st.metric("Estratos en Vista", estratos_activos)
+# --- CUERPO PRINCIPAL ---
+st.title("📊 Dashboard de Satisfacción FarmaTech")
+st.info("Para tomar una captura: Presiona **Windows + Shift + S** (en PC) o usa el botón de la cámara arriba a la derecha de cada gráfica.")
 
-with col_m3:
-    # Mostramos cuántas personas hay por estrato en el filtro actual
-    if not df_filtrado.empty:
-        conteo_estratos = df_filtrado["Estrato"].value_counts().to_dict()
-        st.write("📌 **Personas por Estrato:**")
-        st.caption(str(conteo_estratos).replace("{", "").replace("}", ""))
+col1, col2 = st.columns(2)
 
-# --- BOTÓN DE DESCARGA ---
-def generar_excel(df_input):
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_input.to_excel(writer, index=False, sheet_name='Datos_Filtrados')
-    return output.getvalue()
+with col1:
+    st.subheader("Frecuencia de Compra")
+    fig1 = px.pie(df_filtrado, names='Frecuencia', hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+    st.plotly_chart(fig1, use_container_width=True)
 
-if not df_filtrado.empty:
-    st.sidebar.markdown("---")
-    st.sidebar.download_button(
-        label="📥 Descargar Reporte Excel",
-        data=generar_excel(df_filtrado),
-        file_name="reporte_farmatech_militar.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+with col2:
+    st.subheader("Gasto Mensual por Cliente")
+    fig2 = px.bar(df_filtrado, x='Nombre', y='Gasto Mensual', color='Gasto Mensual', title="Gasto por Usuario")
+    st.plotly_chart(fig2, use_container_width=True)
 
-# --- VISUALIZACIÓN DE GRÁFICAS Y TABLAS ---
-if not df_filtrado.empty:
-    st.markdown("### 📈 Análisis de la Muestra")
-    
-    tab1, tab2 = st.tabs(["📊 Gráficas", "📋 Tabla de Datos"])
-    
-    with tab1:
-        c1, c2 = st.columns(2)
-        with c1:
-            # Gráfica de Distribución de Estratos
-            fig_estrato = px.bar(df_filtrado['Estrato'].value_counts().reset_index(), 
-                                 x='Estrato', y='count', 
-                                 title="Cantidad de Personas por Estrato",
-                                 labels={'count':'Personas', 'Estrato':'Nivel de Estrato'},
-                                 color='Estrato')
-            st.plotly_chart(fig_estrato, use_container_width=True)
-        
-        with c2:
-            # Gráfica de Canal de Compra
-            col_canal = [c for c in df.columns if "Canal" in c]
-            if col_canal:
-                fig_pie = px.pie(df_filtrado, names=col_canal[0], title="Preferencia de Canal de Compra", hole=0.4)
-                st.plotly_chart(fig_pie, use_container_width=True)
-
-    with tab2:
-        st.write("🔍 **Detalle de la base de datos filtrada:**")
-        # Mostramos la tabla completa para que puedas verificar los 40 registros
-        st.dataframe(df_filtrado, use_container_width=True, height=400)
+# --- SECCIÓN DE HISTORIAL ---
+st.divider()
+st.subheader("📜 Historial de Consultas")
+if st.session_state.historial:
+    hist_df = pd.DataFrame(st.session_state.historial)
+    st.table(hist_df)
 else:
-    st.warning("⚠️ El filtro está vacío. Selecciona al menos un estrato en la barra lateral.")
+    st.write("El historial está vacío. Dale a 'Guardar en Historial' para ver datos aquí.")
+
+# --- DESCARGA DE DATOS ---
+st.divider()
+st.subheader("📥 Exportar Datos Actuales")
+buffer = io.BytesIO()
+with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+    df_filtrado.to_excel(writer, index=False, sheet_name='Reporte')
+    
+st.download_button(
+    label="Descargar Excel de Datos Filtrados",
+    data=buffer.getvalue(),
+    file_name=f"reporte_farmatech_{datetime.now().strftime('%Y%m%d')}.xlsx",
+    mime="application/vnd.ms-excel"
+)
