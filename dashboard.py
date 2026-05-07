@@ -16,10 +16,11 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 1. CARGA DE DATOS
+# 1. CARGA DE DATOS (MEJORADO PARA QUE APAREZCAN LAS GRÁFICAS)
 @st.cache_data
 def cargar_datos():
     data = pd.read_excel("encuestas_farmatech.xlsx")
+    # CORRECCIÓN: Limpia espacios vacíos al inicio y final de los títulos de las columnas
     data.columns = data.columns.str.strip()
     return data
 
@@ -37,17 +38,16 @@ if 'historial' not in st.session_state:
 st.sidebar.image("https://www.unimilitar.edu.co/documents/10184/10227/Logo.png", width=200)
 st.sidebar.title("Panel de Control")
 
-# 3. FILTROS POR ESTRATO (SOLICITADO)
+# 3. FILTROS POR ESTRATO
 col_estrato = 'Estrato'
 if col_estrato in df.columns:
-    # Convertimos a string por si vienen como números
     df[col_estrato] = df[col_estrato].astype(str)
     opciones_estrato = sorted(df[col_estrato].unique())
     
     filtro_estrato = st.sidebar.multiselect("Filtrar por Estrato:", options=opciones_estrato, default=opciones_estrato)
     df_filtrado = df[df[col_estrato].isin(filtro_estrato)]
     
-    # MOSTRAR CANTIDAD DE PERSONAS (SOLICITADO)
+    # MOSTRAR CANTIDAD DE PERSONAS
     total_encuestados = len(df)
     seleccionados = len(df_filtrado)
     
@@ -83,21 +83,27 @@ st.info("📸 **PARA DESCARGAR GRÁFICAS:** Pasa el mouse sobre la gráfica y ha
 
 col1, col2 = st.columns(2)
 
-# GRÁFICA 1: FRECUENCIA
+# CORRECCIÓN: GRÁFICA 1 CON BUSQUEDA INTELIGENTE DE COLUMNA
 with col1:
     st.subheader("Frecuencia de Compra")
-    col_frec = 'Frecuencia'
-    if col_frec in df_filtrado.columns:
+    # Busca la columna aunque se llame 'Frecuencia ' o similar
+    col_frec = next((c for c in df_filtrado.columns if 'Frecuencia' in c), None)
+    if col_frec:
         fig1 = px.pie(df_filtrado, names=col_frec, hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
         st.plotly_chart(fig1, use_container_width=True)
+    else:
+        st.warning("⚠️ No se encontró la columna de 'Frecuencia' para graficar.")
 
-# GRÁFICA 2: GASTO
+# CORRECCIÓN: GRÁFICA 2 CON BUSQUEDA INTELIGENTE DE COLUMNA
 with col2:
     st.subheader("Gasto Mensual por Cliente")
-    col_gasto = 'Gasto Mer' if 'Gasto Mer' in df_filtrado.columns else 'Gasto Mensual'
-    if col_gasto in df_filtrado.columns:
+    # Busca columnas que contengan 'Gasto' (como 'Gasto Mer' o 'Gasto Mensual')
+    col_gasto = next((c for c in df_filtrado.columns if 'Gasto' in c), None)
+    if col_gasto:
         fig2 = px.bar(df_filtrado, x='Nombre', y=col_gasto, color=col_gasto, color_continuous_scale='Viridis')
         st.plotly_chart(fig2, use_container_width=True)
+    else:
+        st.warning("⚠️ No se encontró la columna de 'Gasto' para graficar.")
 
 # --- SECCIÓN DE HISTORIAL ---
 st.divider()
